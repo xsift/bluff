@@ -1,0 +1,4 @@
+version: 1
+gate:
+  require_tests: true
+  require_human_approval: true
