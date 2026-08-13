@@ -1,4 +1,4 @@
-# DESIGN — Bot or Bluff
+# DESIGN — Bluff
 
 ## 1. 技术栈
 

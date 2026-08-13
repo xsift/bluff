@@ -1,8 +1,8 @@
-# Bot or Bluff
+# Bluff
 
-> 和一桌 AI 聊天、撒谎、推理：在三分钟的间谍猜词局中，找出隐藏的卧底。
+> **Talk. Lie. Vote.** 和一桌 AI 聊天、撒谎、推理。
 
-**Bot or Bluff** 是一个 AI 原生社交推理小游戏，也是 [Sift](https://github.com/miaoxiaoyong/sift) 的入门样板项目。真人与三个虚构 AI 角色同桌；程序负责规则与裁判，模型只负责发言、判断和投票。
+**Bluff** 是一个 AI 原生社交推理游戏平台，也是 [Sift](https://github.com/miaoxiaoyong/sift) 的入门样板项目。首个游戏模式 **Bot or Bluff** 中，真人与三个虚构 AI 角色同桌，在三分钟的间谍猜词局里找出隐藏的卧底；程序负责规则与裁判，模型只负责发言、判断和投票。
 
 当前处于 MVP 建设阶段。默认规则机器人无需 API Key；后续可接 OpenAI-compatible/Ollama 模型，并扩展语音输入与角色语音。
 

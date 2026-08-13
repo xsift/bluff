@@ -1,4 +1,4 @@
-# AGENTS.md — Bot or Bluff Agent 导航
+# AGENTS.md — Bluff Agent 导航
 
 ## 先读
 

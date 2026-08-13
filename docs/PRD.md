@@ -1,4 +1,4 @@
-# PRD — Bot or Bluff
+# PRD — Bluff
 
 ## 1. 产品承诺
 

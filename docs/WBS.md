@@ -1,4 +1,4 @@
-# WBS — Bot or Bluff
+# WBS — Bluff
 
 ## M1：可玩文字闭环
 
