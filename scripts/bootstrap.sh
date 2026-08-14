@@ -61,8 +61,11 @@ priority:p0 b60205
 priority:p1 d93f0b
 priority:p2 fbca04
 priority:p3 cfd3d7"
+created_labels=''
 while read -r label color; do
   gh label create "$label" --repo "$repo" --color "$color" --force >/dev/null
+  created_labels="$created_labels
+$label"
   echo "label ready: $label"
 done <<EOF
 $labels
@@ -75,10 +78,11 @@ files=(.github/sift-tasks/*.md)
   exit 1
 }
 for task in "${files[@]}"; do
-  title=$(awk -F': *' '/^title:/{print $2; exit}' "$task")
+  # Split front matter only at the first colon: label names themselves contain one.
+  title=$(sed -n 's/^title:[[:space:]]*//p' "$task" | head -n1)
   title=${title#\"}; title=${title%\"}
   [[ -n "$title" ]] || { echo "bootstrap: missing title in $task" >&2; exit 1; }
-  labels_csv=$(awk -F': *' '/^labels:/{print $2; exit}' "$task")
+  labels_csv=$(sed -n 's/^labels:[[:space:]]*//p' "$task" | head -n1)
   labels_csv=${labels_csv:-sift:run,sift:seed}
   issue_labels=( )
   IFS=',' read -ra issue_labels <<< "$labels_csv"
@@ -91,7 +95,13 @@ for task in "${files[@]}"; do
   args=(gh issue create --repo "$repo" --title "$title" --body-file "$body")
   for label in "${issue_labels[@]}"; do
     label=$(printf '%s' "$label" | xargs)
-    [[ -n "$label" ]] && args+=(--label "$label")
+    if [[ -n "$label" ]]; then
+      printf '%s\n' "$created_labels" | grep -Fqx "$label" || {
+        echo "bootstrap: seed $task references unknown label: $label" >&2
+        exit 1
+      }
+      args+=(--label "$label")
+    fi
   done
   "${args[@]}"
   rm -f "$body"
