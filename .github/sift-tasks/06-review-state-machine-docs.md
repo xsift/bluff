@@ -1,4 +1,5 @@
 ---
+id: review-state-machine-docs
 title: "[Sift seed] Add a state-machine transition table"
 labels: sift:run,sift:seed,priority:p0
 difficulty: advanced

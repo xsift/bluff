@@ -1,4 +1,5 @@
 ---
+id: harden-api-input-test
 title: "[Sift seed] Add an API test for oversized player text"
 labels: sift:run,sift:seed,priority:p1
 difficulty: advanced

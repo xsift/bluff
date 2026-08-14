@@ -1,4 +1,5 @@
 ---
+id: visible-mode-badge
 title: "[Sift seed] Add a visible rules-bot mode badge"
 labels: sift:run,sift:seed,priority:p2
 difficulty: beginner

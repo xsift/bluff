@@ -1,4 +1,5 @@
 ---
+id: cover-reset-flow
 title: "[Sift seed] Add a regression test for starting a second game"
 labels: sift:run,sift:seed,priority:p1
 difficulty: intermediate

@@ -30,37 +30,63 @@ case "${1:-}" in
     name=$3; grep -Fqx "$name" "$labels" || printf '%s\n' "$name" >>"$labels"
     printf 'label %s\n' "$*" >>"$GH_LOG" ;;
   api)
+    # Emit one compact JSON object per stored Issue so the script can parse
+    # number/title/body together (mirrors `gh api ... --jq '.[]'`). An Issue with
+    # a `.null-body` marker reports `body: null` the way the real GitHub API
+    # does for Issues created without a body.
     for body in "$state"/issue-*.body; do
-      [[ -e "$body" ]] && cat "$body"
+      [[ -e "$body" ]] || continue
+      n=${body##*/issue-}; n=${n%.body}
+      title=''
+      if [[ -e "$state/issue-$n.title" ]]; then title=$(sed -n '1p' "$state/issue-$n.title"); fi
+      if [[ -e "$state/issue-$n.null-body" ]]; then
+        jq -cn --arg n "$n" --arg t "$title" \
+          '{number:($n|tonumber), title:$t, body:null}'
+      else
+        jq -cn --arg n "$n" --arg t "$title" --rawfile b "$body" \
+          '{number:($n|tonumber), title:$t, body:$b}'
+      fi
     done
     true ;;
   issue)
-    if [[ "$2" == view ]]; then
-      cat "$state/issue-$3.body"
-    elif [[ "$2" == create ]]; then
-      title=''; body_file=''; issue_labels=()
-      while (($#)); do
-        case "$1" in
-          --title) title=$2; shift 2;;
-          --body-file) body_file=$2; shift 2;;
-          --label) issue_labels+=("$2"); shift 2;;
-          *) shift;;
-        esac
-      done
-      for label in "${issue_labels[@]}"; do
-        grep -Fqx "$label" "$labels" || { echo 'GitHub API: 422 unknown label' >&2; exit 22; }
-      done
-      next=$(find "$state" -name 'issue-*.body' | wc -l | tr -d ' ')
-      next=$((next + 1))
-      if [[ "${GH_CREATE_FAIL_AT:-0}" == "$next" && ! -f "$state/failed" ]]; then
-        touch "$state/failed"
-        exit 1
-      fi
-      cp "$body_file" "$state/issue-$next.body"
-      printf '%s\n' "$title" >"$state/issue-$next.title"
-      printf 'issue create %s\n' "$title" >>"$GH_LOG"
-      printf 'https://github.com/%s/issues/%s\n' "${GH_REPO_NAME:-owner/project}" "$next"
-    fi ;;
+    case "${2:-}" in
+      view) cat "$state/issue-$3.body" ;;
+      edit)
+        n=$3; body_file=''
+        while (($#)); do
+          case "$1" in
+            --body-file) body_file=$2; shift 2;;
+            *) shift;;
+          esac
+        done
+        [[ -n "$body_file" && -f "$body_file" ]] || { echo 'issue edit: missing body-file' >&2; exit 1; }
+        cp "$body_file" "$state/issue-$n.body"
+        printf 'issue edit %s\n' "$n" >>"$GH_LOG" ;;
+      create)
+        title=''; body_file=''; issue_labels=()
+        while (($#)); do
+          case "$1" in
+            --title) title=$2; shift 2;;
+            --body-file) body_file=$2; shift 2;;
+            --label) issue_labels+=("$2"); shift 2;;
+            *) shift;;
+          esac
+        done
+        for label in "${issue_labels[@]}"; do
+          grep -Fqx "$label" "$labels" || { echo 'GitHub API: 422 unknown label' >&2; exit 22; }
+        done
+        next=$(find "$state" -name 'issue-*.body' | wc -l | tr -d ' ')
+        next=$((next + 1))
+        if [[ "${GH_CREATE_FAIL_AT:-0}" == "$next" && ! -f "$state/failed" ]]; then
+          touch "$state/failed"
+          exit 1
+        fi
+        cp "$body_file" "$state/issue-$next.body"
+        printf '%s\n' "$title" >"$state/issue-$next.title"
+        printf 'issue create %s\n' "$title" >>"$GH_LOG"
+        printf 'https://github.com/%s/issues/%s\n' "${GH_REPO_NAME:-owner/project}" "$next"
+        ;;
+    esac ;;
   *) exit 0 ;;
 esac
 MOCK
@@ -99,9 +125,9 @@ labels_created=$(wc -l <"$tmp/recover/gh.state/labels")
 
 # An immediate rerun uses stable body markers, even if a title changed, and creates nothing.
 printf '%s\n' 'A maintainer renamed this Issue' >"$tmp/recover/gh.state/issue-1.title"
-before=$(grep -c '^issue create ' "$tmp/recover/gh.log")
+before=$(grep -c '^issue create ' "$tmp/recover/gh.log" || true)
 env PATH="$tmp/recover/bin:$PATH" GH_STATE="$tmp/recover/gh.state" GH_LOG="$tmp/recover/gh.log" GH_REPO_NAME=me/project sh -c "cd '$tmp/recover' && '$script_dir/bootstrap.sh'" >/dev/null
-after=$(grep -c '^issue create ' "$tmp/recover/gh.log")
+after=$(grep -c '^issue create ' "$tmp/recover/gh.log" || true)
 [[ "$before" -eq "$after" ]] || fail "immediate rerun created duplicate Issues"
 
 # A seed with an unknown label must fail closed before GitHub can create it.
@@ -112,5 +138,55 @@ assert_fail env PATH="$tmp/unknown-label/bin:$PATH" GH_STATE="$tmp/unknown-label
 
 # The mock also enforces GitHub's 422 for any issue label not created above.
 grep -Fq 'unknown label' /tmp/bootstrap-test.out || fail "unknown label was not rejected"
+
+# Legacy migration: an Issue created by a bootstrap older than stable body markers
+# has no marker. Bootstrap must stamp the canonical marker into it (dedupe) rather
+# than create a duplicate, and stay idempotent on the next run.
+make_repo "$tmp/migrate" "https://github.com/me/project.git"; write_gh "$tmp/migrate"
+state="$tmp/migrate/gh.state"
+printf '%s\n' '[Sift seed] Add a visible rules-bot mode badge' >"$state/issue-1.title"
+cp "$script_dir/../.github/sift-tasks/01-add-visible-mode-badge.md" "$state/issue-1.body"
+run_bootstrap() {
+  env PATH="$tmp/migrate/bin:$PATH" GH_STATE="$state" GH_LOG="$tmp/migrate/gh.log" GH_REPO_NAME=me/project \
+    sh -c "cd '$tmp/migrate' && '$script_dir/bootstrap.sh'"
+}
+run_bootstrap >/dev/null
+count=$(find "$state" -name 'issue-*.body' | wc -l | tr -d ' ')
+[[ "$count" -eq 6 ]] || fail "legacy migration left wrong number of Issues (got $count)"
+creates=$(grep -c '^issue create ' "$tmp/migrate/gh.log" || true)
+[[ "$creates" -eq 5 ]] || fail "legacy migration created a duplicate instead of migrating (got $creates creates)"
+grep -Fq 'issue edit 1' "$tmp/migrate/gh.log" || fail "legacy Issue was not edited to add the canonical marker"
+grep -Fq '<!-- bluff-sift-seed:visible-mode-badge -->' "$state/issue-1.body" || fail "migrated Issue lacks the canonical marker"
+markers=$(grep -c '^<!-- bluff-sift-seed:' "$state/issue-1.body" || true)
+[[ "$markers" -eq 1 ]] || fail "migrated Issue has unexpected marker count ($markers)"
+# Rerun after migration must be a no-op.
+mutations=$(grep -cE '^(issue create|issue edit) ' "$tmp/migrate/gh.log" || true)
+run_bootstrap >/dev/null
+mutations_after=$(grep -cE '^(issue create|issue edit) ' "$tmp/migrate/gh.log" || true)
+[[ "$mutations" -eq "$mutations_after" ]] || fail "rerun after migration was not idempotent"
+
+# Rename decoupling: stable identity comes from front matter `id`, not the file
+# name, so renaming a task file must not recreate an Issue.
+mv "$tmp/migrate/.github/sift-tasks/01-add-visible-mode-badge.md" \
+   "$tmp/migrate/.github/sift-tasks/07-visible-mode-badge.md"
+run_bootstrap >/dev/null
+created_after_rename=$(grep -c '^issue create ' "$tmp/migrate/gh.log" || true)
+[[ "$created_after_rename" -eq 5 ]] || fail "renaming a task file recreated its Issue"
+
+# Real GitHub API contract: Issues created without a body report `body: null`.
+# Bootstrap must treat null as an empty body, migrate the Issue by title, and
+# never crash on jq's null containment check.
+make_repo "$tmp/null-body" "https://github.com/me/project.git"; write_gh "$tmp/null-body"
+state="$tmp/null-body/gh.state"
+printf '%s\n' '[Sift seed] Add a visible rules-bot mode badge' >"$state/issue-1.title"
+: >"$state/issue-1.body"
+: >"$state/issue-1.null-body"
+env PATH="$tmp/null-body/bin:$PATH" GH_STATE="$state" GH_LOG="$tmp/null-body/gh.log" GH_REPO_NAME=me/project \
+  sh -c "cd '$tmp/null-body' && '$script_dir/bootstrap.sh'" >/dev/null \
+  || fail "bootstrap crashed on an Issue with body:null"
+grep -Fq '<!-- bluff-sift-seed:visible-mode-badge -->' "$state/issue-1.body" \
+  || fail "body:null Issue was not migrated with the canonical marker"
+null_creates=$(grep -c '^issue create ' "$tmp/null-body/gh.log" || true)
+[[ "$null_creates" -eq 5 ]] || fail "body:null Issue was duplicated instead of migrated (got $null_creates creates)"
 
 echo "bootstrap shell tests passed"

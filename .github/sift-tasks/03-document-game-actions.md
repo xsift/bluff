@@ -1,4 +1,5 @@
 ---
+id: document-game-actions
 title: "[Sift seed] Document the legal game actions"
 labels: sift:run,sift:seed,priority:p3
 difficulty: beginner
