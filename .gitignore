@@ -1,6 +1,11 @@
-node_modules
-.next
-playwright-report
-test-results
-.bluff-data
+node_modules/
+.next/
+playwright-report/
+test-results/
+coverage/
+.bluff-data/
 *.log
+.env
+.env.*
+!.env.example
+.worktrees/
