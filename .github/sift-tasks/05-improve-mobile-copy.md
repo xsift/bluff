@@ -1,4 +1,5 @@
 ---
+id: improve-mobile-copy
 title: "[Sift seed] Clarify the mobile voting instructions"
 labels: sift:run,sift:seed,priority:p2
 difficulty: intermediate

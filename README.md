@@ -82,14 +82,18 @@ sift doctor
 
 这些是真实的 `.github/sift-tasks/*.md` 文件。priority 表示处理优先级，difficulty 表示实施难度；每项都可用现有测试、文档或规则机器人完成，不依赖付费 runtime model：
 
-| Seed task | Priority | Difficulty |
+| Seed task (`id`) | Priority | Difficulty |
 |---|---:|---|
-| `01-add-visible-mode-badge.md` | P2 | beginner |
-| `02-cover-reset-flow.md` | P1 | intermediate |
-| `03-document-game-actions.md` | P3 | beginner |
-| `04-harden-api-input-test.md` | P1 | advanced |
-| `05-improve-mobile-copy.md` | P2 | intermediate |
-| `06-review-state-machine-docs.md` | P0 | advanced |
+| `01-add-visible-mode-badge.md` (`visible-mode-badge`) | P2 | beginner |
+| `02-cover-reset-flow.md` (`cover-reset-flow`) | P1 | intermediate |
+| `03-document-game-actions.md` (`document-game-actions`) | P3 | beginner |
+| `04-harden-api-input-test.md` (`harden-api-input-test`) | P1 | advanced |
+| `05-improve-mobile-copy.md` (`improve-mobile-copy`) | P2 | intermediate |
+| `06-review-state-machine-docs.md` (`review-state-machine-docs`) | P0 | advanced |
+
+每个 seed 的**稳定身份**是 front matter 的 `id` 字段，与文件名无关。bootstrap 把该 id 写入 Issue body 的 `<!-- bluff-sift-seed:<id> -->` marker；因此重命名/重编号 seed 文件不会重建 Issue，只要 `id` 不变就仍是同一个 Issue。文件名的数字前缀只是排序提示，不是身份。
+
+旧版 bootstrap（尚无 marker）创建的 seed Issue 会被自动迁移：bootstrap 按标题匹配到这类无 marker 的 Issue 时，会把当前 canonical marker 写进其 body 并复用，而不是新建重复 Issue；若标题冲突到多个无 marker 的 Issue，或出现多个相同 marker，会 fail closed 要求人工解决。
 
 ## Development
 
