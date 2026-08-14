@@ -1,3 +1,4 @@
+import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { answer, botAction, createGame, describe, Game, question, reveal, start, viewFor, vote } from "../domain/game";
 import { JsonGameRepository } from "../adapters/storage/game-repository";
@@ -6,7 +7,9 @@ const commandSchema = z.object({ key: z.string().min(1).max(100), version: z.num
 type Command = z.infer<typeof commandSchema>;
 type Stored = { game: Game; keys: Record<string, ReturnType<typeof viewFor>> };
 const games = new JsonGameRepository();
-let sequence = 0;
+export type GameIdentitySource = { nextId: () => string; nextSeed: () => number };
+const defaultIdentitySource: GameIdentitySource = { nextId: randomUUID, nextSeed: () => randomInt(0, 0x1_0000_0000) };
+let identitySource = defaultIdentitySource;
 const botDescription = ["它常见，但不同场景会有不同感受。", "我会从用途和出现的地方来判断它。", "它很适合和熟悉的人分享体验。"];
 function botId(index: number) { return `p${index + 2}`; }
 function autoDescribe(game: Game) { while (game.phase === "describing" && game.descriptionIndex > 0 && game.descriptionIndex < 4) { const id = game.players[game.descriptionIndex].id; game = botAction(game, { kind: "describe", actorId: id, text: botDescription[game.descriptionIndex - 1] }); } return game; }
@@ -17,8 +20,10 @@ function botVoteTarget(game: Game, actorId: string) {
   return game.players.find(p => p.id !== actorId)?.id ?? "p1";
 }
 
-export function newGame(seed = ++sequence): ReturnType<typeof viewFor> {
-  let game = start(createGame(seed, `game-${seed}`));
+export function newGame(seed?: number, id?: string): ReturnType<typeof viewFor> {
+  const resolvedSeed = seed ?? identitySource.nextSeed();
+  const resolvedId = id ?? identitySource.nextId();
+  let game = start(createGame(resolvedSeed, resolvedId));
   games.save({ game, keys: {} });
   return viewFor(game, "p1");
 }
@@ -47,4 +52,5 @@ export function submit(id: string, raw: unknown) {
   return result;
 }
 export function recentGames() { return games.recent().map(game => ({ id: game.id, winner: game.outcome?.winner, reason: game.outcome?.reason })); }
-export function resetForTests() { games.clear(); sequence = 0; }
+export function setGameIdentitySourceForTests(source: GameIdentitySource) { identitySource = source; }
+export function resetForTests() { games.clear(); identitySource = defaultIdentitySource; }
