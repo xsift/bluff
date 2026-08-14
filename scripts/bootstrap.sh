@@ -82,16 +82,33 @@ for task in "${files[@]}"; do
   title=$(sed -n 's/^title:[[:space:]]*//p' "$task" | head -n1)
   title=${title#\"}; title=${title%\"}
   [[ -n "$title" ]] || { echo "bootstrap: missing title in $task" >&2; exit 1; }
+  difficulty=$(sed -n 's/^difficulty:[[:space:]]*//p' "$task" | head -n1)
+  case "$difficulty" in
+    beginner|intermediate|advanced) ;;
+    *) echo "bootstrap: seed $task needs beginner, intermediate, or advanced difficulty" >&2; exit 1 ;;
+  esac
   labels_csv=$(sed -n 's/^labels:[[:space:]]*//p' "$task" | head -n1)
   labels_csv=${labels_csv:-sift:run,sift:seed}
   issue_labels=( )
   IFS=',' read -ra issue_labels <<< "$labels_csv"
-  gh issue list --repo "$repo" --state all --search "in:title \"$title\"" --json title --jq '.[].title' | grep -Fqx "$title" && {
+
+  seed_id=${task##*/}
+  marker="<!-- bluff-sift-seed:${seed_id%.md} -->"
+  # The repository Issue list is authoritative and immediately readable. Unlike
+  # search, it does not depend on GitHub's eventually consistent search index.
+  issue_bodies=$(gh api --paginate "repos/$repo/issues?state=all&per_page=100" --jq '.[].body')
+  marker_count=$(printf '%s\n' "$issue_bodies" | grep -Fxc "$marker" || true)
+  if ((marker_count > 1)); then
+    echo "bootstrap: multiple Issues have seed marker $marker; resolve them manually" >&2
+    exit 1
+  elif ((marker_count == 1)); then
     echo "Issue exists: $title"
     continue
-  }
+  fi
+
   body=$(mktemp)
-  awk 'BEGIN { front=0 } /^---$/ { front++; next } front >= 2 { print }' "$task" >"$body"
+  printf '%s\n\n' "$marker" >"$body"
+  awk 'BEGIN { front=0 } /^---$/ { front++; next } front >= 2 { print }' "$task" >>"$body"
   args=(gh issue create --repo "$repo" --title "$title" --body-file "$body")
   for label in "${issue_labels[@]}"; do
     label=$(printf '%s' "$label" | xargs)
@@ -103,8 +120,19 @@ for task in "${files[@]}"; do
       args+=(--label "$label")
     fi
   done
-  "${args[@]}"
+  created_issue=$("${args[@]}")
   rm -f "$body"
+  issue_number=${created_issue##*/}
+  [[ "$issue_number" =~ ^[0-9]+$ ]] || {
+    echo "bootstrap: could not read created Issue number from: $created_issue" >&2
+    exit 1
+  }
+  readback=$(gh issue view "$issue_number" --repo "$repo" --json body --jq '.body')
+  printf '%s\n' "$readback" | grep -Fqx "$marker" || {
+    echo "bootstrap: created Issue #$issue_number failed marker readback" >&2
+    exit 1
+  }
+  printf '%s\n' "$created_issue"
   echo "Issue created: $title"
 done
 

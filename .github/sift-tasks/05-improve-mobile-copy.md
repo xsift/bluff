@@ -1,6 +1,7 @@
 ---
 title: "[Sift seed] Clarify the mobile voting instructions"
 labels: sift:run,sift:seed,priority:p2
+difficulty: intermediate
 ---
 
 Make the voting instruction understandable at narrow viewport widths. Preserve the existing server-side action contract and add or update a Playwright assertion if the copy is user-visible.
