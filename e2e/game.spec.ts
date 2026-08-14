@@ -33,6 +33,9 @@ test("a player can finish a rule-bot game", async ({ page }) => {
   await finishGame(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "最近十局" })).toBeVisible();
+  const recentItems = page.locator(".recent li");
+  await expect(recentItems).not.toHaveCount(0);
+  await expect(recentItems.first()).toContainText("获胜");
 });
 
 test("a player can finish a complete game at phone width", async ({ page }) => {
