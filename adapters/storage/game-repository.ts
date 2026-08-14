@@ -9,7 +9,15 @@ export class JsonGameRepository implements GameRepository {
   private records = new Map<string, StoredGame>();
   constructor() { try { for (const value of JSON.parse(readFileSync(file, "utf8")) as StoredGame[]) this.records.set(value.game.id, value); } catch { /* First run has no data file. */ } }
   get(id: string) { return this.records.get(id); }
-  save(record: StoredGame) { this.records.set(record.game.id, record); mkdirSync(join(process.cwd(), ".bluff-data"), { recursive: true }); writeFileSync(file, JSON.stringify([...this.records.values()])); }
+  save(record: StoredGame) {
+    const existing = this.records.get(record.game.id);
+    if (existing && existing !== record) throw new Error("对局 ID 已存在");
+    this.records.set(record.game.id, record);
+    const completed = [...this.records.entries()].filter(([, value]) => value.game.phase === "revealed");
+    for (const [id] of completed.slice(0, -10)) this.records.delete(id);
+    mkdirSync(join(process.cwd(), ".bluff-data"), { recursive: true });
+    writeFileSync(file, JSON.stringify([...this.records.values()]));
+  }
   recent() { return [...this.records.values()].map(x => x.game).filter(x => x.phase === "revealed").slice(-10).reverse(); }
   clear() { this.records.clear(); }
 }
