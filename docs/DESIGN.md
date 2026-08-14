@@ -2,7 +2,7 @@
 
 ## 1. 技术栈
 
-Next.js + React + TypeScript；Tailwind；Drizzle + SQLite；Zod；Vitest；Playwright。初期轮询或 SSE，只有多人/语音阶段再引入 WebSocket。
+Next.js + React + TypeScript；轻量 CSS；Zod；Vitest；Playwright。初期轮询或 SSE，只有多人/语音阶段再引入 WebSocket。对局持久化经 server-side repository port；M1 使用 JSON 文件实现，后续可替换为 Drizzle + SQLite。
 
 ## 2. 分层
 
