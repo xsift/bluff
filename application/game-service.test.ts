@@ -2,13 +2,17 @@ import { afterEach, expect, it } from "vitest";
 import { createGame } from "../domain/game";
 import { newGame, resetForTests, setGameIdentitySourceForTests, submit } from "./game-service";
 afterEach(resetForTests);
-it("uses distinct strong identities for same-millisecond creations", () => {
-  let id = 0;
-  setGameIdentitySourceForTests({ nextId: () => `test-id-${++id}`, nextSeed: () => 123 });
+it("uses distinct identities and game content for same-millisecond creations", () => {
+  let sequence = 0;
+  setGameIdentitySourceForTests({
+    nextId: () => `test-id-${sequence + 1}`,
+    nextSeed: () => ++sequence,
+  });
   const first = newGame();
   const second = newGame();
   expect(first.id).not.toBe(second.id);
-  expect(first.category).toBe(second.category);
+  expect(first.secret?.word).not.toBe(second.secret?.word);
+  expect(first.category).not.toBe(second.category);
 });
 
 it("returns the same result for a duplicate command key", () => { const game = newGame(8); const command = { key: "same", version: game.version, action: "describe" as const, text: "它有独特的使用场景" }; expect(submit(game.id, command)).toEqual(submit(game.id, command)); });
