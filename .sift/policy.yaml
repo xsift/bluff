@@ -1,4 +1,13 @@
 version: 1
-gate:
-  require_tests: true
-  require_human_approval: true
+protected_paths:
+  hard:
+    - ".github/workflows/**"
+  soft:
+    - "app/**"
+    - "domain/**"
+  soft_exceptions: []
+review_policy: always
+risky_review_threshold: 1
+auto_merge: false
+checks_pending_timeout: 1h
+flaky_retry_limit: 1
