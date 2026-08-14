@@ -31,14 +31,21 @@ case "${1:-}" in
     printf 'label %s\n' "$*" >>"$GH_LOG" ;;
   api)
     # Emit one compact JSON object per stored Issue so the script can parse
-    # number/title/body together (mirrors `gh api ... --jq '.[]'`).
+    # number/title/body together (mirrors `gh api ... --jq '.[]'`). An Issue with
+    # a `.null-body` marker reports `body: null` the way the real GitHub API
+    # does for Issues created without a body.
     for body in "$state"/issue-*.body; do
       [[ -e "$body" ]] || continue
       n=${body##*/issue-}; n=${n%.body}
       title=''
       if [[ -e "$state/issue-$n.title" ]]; then title=$(sed -n '1p' "$state/issue-$n.title"); fi
-      jq -cn --arg n "$n" --arg t "$title" --rawfile b "$body" \
-        '{number:($n|tonumber), title:$t, body:$b}'
+      if [[ -e "$state/issue-$n.null-body" ]]; then
+        jq -cn --arg n "$n" --arg t "$title" \
+          '{number:($n|tonumber), title:$t, body:null}'
+      else
+        jq -cn --arg n "$n" --arg t "$title" --rawfile b "$body" \
+          '{number:($n|tonumber), title:$t, body:$b}'
+      fi
     done
     true ;;
   issue)
@@ -165,5 +172,21 @@ mv "$tmp/migrate/.github/sift-tasks/01-add-visible-mode-badge.md" \
 run_bootstrap >/dev/null
 created_after_rename=$(grep -c '^issue create ' "$tmp/migrate/gh.log" || true)
 [[ "$created_after_rename" -eq 5 ]] || fail "renaming a task file recreated its Issue"
+
+# Real GitHub API contract: Issues created without a body report `body: null`.
+# Bootstrap must treat null as an empty body, migrate the Issue by title, and
+# never crash on jq's null containment check.
+make_repo "$tmp/null-body" "https://github.com/me/project.git"; write_gh "$tmp/null-body"
+state="$tmp/null-body/gh.state"
+printf '%s\n' '[Sift seed] Add a visible rules-bot mode badge' >"$state/issue-1.title"
+: >"$state/issue-1.body"
+: >"$state/issue-1.null-body"
+env PATH="$tmp/null-body/bin:$PATH" GH_STATE="$state" GH_LOG="$tmp/null-body/gh.log" GH_REPO_NAME=me/project \
+  sh -c "cd '$tmp/null-body' && '$script_dir/bootstrap.sh'" >/dev/null \
+  || fail "bootstrap crashed on an Issue with body:null"
+grep -Fq '<!-- bluff-sift-seed:visible-mode-badge -->' "$state/issue-1.body" \
+  || fail "body:null Issue was not migrated with the canonical marker"
+null_creates=$(grep -c '^issue create ' "$tmp/null-body/gh.log" || true)
+[[ "$null_creates" -eq 5 ]] || fail "body:null Issue was duplicated instead of migrated (got $null_creates creates)"
 
 echo "bootstrap shell tests passed"

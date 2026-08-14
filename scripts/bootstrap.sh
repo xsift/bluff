@@ -119,7 +119,9 @@ $id"
   marker="${marker_prefix}${id} -->"
 
   # 1. An Issue already carrying this canonical marker is authoritative.
-  marked=$(jq -s -c --arg m "$marker" '[.[] | select(.body | contains($m))]' "$issues_file")
+  # GitHub can report `body: null` (Issues created without a body); treat it as
+  # an empty string so jq's `contains` never receives null.
+  marked=$(jq -s -c --arg m "$marker" '[.[] | select((.body // "") | contains($m))]' "$issues_file")
   marked_n=$(printf '%s\n' "$marked" | jq 'length')
   if ((marked_n > 1)); then
     echo "bootstrap: multiple Issues have seed marker $marker; resolve them manually" >&2
@@ -134,14 +136,14 @@ $id"
   # marker into its body instead of creating a duplicate. A renamed task file is
   # matched here too, because identity comes from `id`, not the file name.
   legacy=$(jq -s -c --arg m "$marker" --arg t "$title" \
-    '[.[] | select(.title == $t) | select((.body | contains($m)) | not)]' "$issues_file")
+    '[.[] | select(.title == $t) | select(((.body // "") | contains($m)) | not)]' "$issues_file")
   legacy_n=$(printf '%s\n' "$legacy" | jq 'length')
   if ((legacy_n > 1)); then
     echo "bootstrap: multiple Issues match seed title \"$title\" without marker; resolve them manually" >&2
     exit 1
   elif ((legacy_n == 1)); then
     legacy_num=$(printf '%s\n' "$legacy" | jq -r '.[0].number')
-    old_body=$(printf '%s\n' "$legacy" | jq -r '.[0].body')
+    old_body=$(printf '%s\n' "$legacy" | jq -r '.[0].body // ""')
     # Strip any older seed markers so the canonical marker is unambiguous.
     clean=$(printf '%s\n' "$old_body" | sed '/^<!-- bluff-sift-seed:/d')
     body=$(mktemp)
