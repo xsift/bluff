@@ -67,8 +67,30 @@ export function reveal(game: Game): Game {
   return add({ ...game, phase: "revealed", version: game.version + 1, outcome: { winner, eliminatedId, reason } }, "system", `${reason}。${winner === "civilian" ? "平民阵营获胜！" : "卧底获胜！"}`);
 }
 
-export function publicBotEvent(game: Game, kind: "describe" | "question" | "answer", actorId: string, text: string): Game {
-  return add({ ...game, version: game.version + 1 }, kind, text, actorId);
+export type BotAction =
+  | { kind: "describe"; actorId: string; text: string }
+  | { kind: "question"; actorId: string; text: string }
+  | { kind: "answer"; actorId: string; text: string }
+  | { kind: "vote"; actorId: string; targetId: string };
+
+function assertBot(game: Game, actorId: string) {
+  if (player(game, actorId).controller !== "rule") throw new Error("只有规则机器人可以执行该动作");
+}
+
+export function botAction(game: Game, action: BotAction): Game {
+  assertBot(game, action.actorId);
+  if (action.kind === "describe") return describe(game, action.actorId, action.text);
+  if (action.kind === "question") {
+    if (game.phase !== "questioning" || game.questionIndex < 1 || game.questionIndex > 2) throw new Error("当前不能提问");
+    assertText(action.text);
+    return add({ ...game, version: game.version + 1 }, "question", action.text, action.actorId);
+  }
+  if (action.kind === "answer") {
+    if (game.phase !== "questioning" || game.questionIndex !== 0 || game.events.at(-1)?.kind !== "question") throw new Error("当前不能回答");
+    assertText(action.text);
+    return add({ ...game, questionIndex: 1, version: game.version + 1 }, "answer", action.text, action.actorId);
+  }
+  return vote(game, action.actorId, action.targetId);
 }
 
 export type PlayerView = { id: string; version: number; phase: Phase; category: string; players: Pick<Player, "id" | "displayName" | "controller">[]; events: Event[]; secret?: { role: Role; word: string }; outcome?: Game["outcome"]; revealedPlayers?: Pick<Player, "id" | "displayName" | "role">[] };

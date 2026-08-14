@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { answer, createGame, describe, Game, publicBotEvent, question, reveal, start, viewFor, vote } from "../domain/game";
+import { answer, botAction, createGame, describe, Game, question, reveal, start, viewFor, vote } from "../domain/game";
 import { JsonGameRepository } from "../adapters/storage/game-repository";
 
 const commandSchema = z.object({ key: z.string().min(1).max(100), version: z.number().int().nonnegative(), action: z.enum(["describe", "question", "answer", "vote"]), text: z.string().optional(), targetId: z.string().optional() });
@@ -9,9 +9,13 @@ const games = new JsonGameRepository();
 let sequence = 0;
 const botDescription = ["它常见，但不同场景会有不同感受。", "我会从用途和出现的地方来判断它。", "它很适合和熟悉的人分享体验。"];
 function botId(index: number) { return `p${index + 2}`; }
-function autoDescribe(game: Game) { while (game.phase === "describing" && game.descriptionIndex > 0 && game.descriptionIndex < 4) { const id = game.players[game.descriptionIndex].id; game = describe(game, id, botDescription[game.descriptionIndex - 1]); } return game; }
-function botQuestion(game: Game, index: number) { return publicBotEvent(game, "question", botId(index), "你会在日常生活中主动接触它吗？"); }
-function botVoteTarget(game: Game, actorId: string) { return game.players.find(p => p.id !== actorId && p.id !== "p1")?.id ?? "p1"; }
+function autoDescribe(game: Game) { while (game.phase === "describing" && game.descriptionIndex > 0 && game.descriptionIndex < 4) { const id = game.players[game.descriptionIndex].id; game = botAction(game, { kind: "describe", actorId: id, text: botDescription[game.descriptionIndex - 1] }); } return game; }
+function botQuestion(game: Game, index: number) { return botAction(game, { kind: "question", actorId: botId(index), text: "你会在日常生活中主动接触它吗？" }); }
+function botVoteTarget(game: Game, actorId: string) {
+  const publicTarget = game.votes.p1;
+  if (publicTarget && publicTarget !== actorId) return publicTarget;
+  return game.players.find(p => p.id !== actorId)?.id ?? "p1";
+}
 
 export function newGame(seed = ++sequence): ReturnType<typeof viewFor> {
   let game = start(createGame(seed, `game-${seed}`));
@@ -27,8 +31,7 @@ export function submit(id: string, raw: unknown) {
   if (command.action === "describe") game = autoDescribe(describe(game, "p1", command.text ?? ""));
   if (command.action === "question") {
     game = question(game, "p1", command.targetId ?? "", command.text ?? "");
-    game = publicBotEvent(game, "answer", command.targetId!, "我会从它的使用方式来描述，不想说得太明显。");
-    game = { ...game, questionIndex: 1, version: game.version + 1 };
+    game = botAction(game, { kind: "answer", actorId: command.targetId!, text: "我会从它的使用方式来描述，不想说得太明显。" });
     game = botQuestion(game, 0);
   }
   if (command.action === "answer") {
@@ -37,7 +40,7 @@ export function submit(id: string, raw: unknown) {
   }
   if (command.action === "vote") {
     game = vote(game, "p1", command.targetId ?? "");
-    for (const p of game.players.filter(p => p.controller === "rule")) game = vote(game, p.id, botVoteTarget(game, p.id));
+    for (const p of game.players.filter(p => p.controller === "rule")) game = botAction(game, { kind: "vote", actorId: p.id, targetId: botVoteTarget(game, p.id) });
     game = reveal(game);
   }
   stored.game = game; const result = viewFor(game, "p1"); stored.keys[command.key] = result; games.save(stored);
