@@ -1,12 +1,30 @@
-import { botAction, describe as describeAction, createGame, question, reveal, start, viewFor, vote } from "./game";
+import { answer, botAction, describe as describeAction, createGame, question, reveal, start, viewFor, vote, wordFor } from "./game";
 import { describe, expect, it } from "vitest";
 
 it("is deterministic for a seed", () => { expect(createGame(42)).toMatchObject(createGame(42)); });
 it("does not disclose other private information before reveal", () => { const game = start(createGame(2)); const view = viewFor(game, "p1"); expect(view).toHaveProperty("secret"); expect(JSON.stringify(view)).not.toContain("spyWord"); expect(JSON.stringify(view)).not.toContain("seed"); expect(view.players[1]).not.toHaveProperty("role"); });
+it("keeps every non-human seat's private view isolated", () => {
+  for (let seed = 1; seed <= 6; seed += 1) {
+    const game = start(createGame(seed));
+    for (const viewer of game.players.filter(p => p.controller === "rule")) {
+      const view = viewFor(game, viewer.id);
+      expect(view.secret).toEqual({ role: viewer.role, word: wordFor(game, viewer) });
+      for (const other of game.players.filter(p => p.id !== viewer.id && p.role !== viewer.role)) {
+        expect(JSON.stringify(view)).not.toContain(wordFor(game, other));
+      }
+      for (const p of view.players) expect(p).not.toHaveProperty("role");
+    }
+  }
+});
 it("rejects actions from illegal phases", () => {
   const game = createGame(1);
   expect(() => describeAction(game, "p1", "提示")).toThrow("描述阶段");
   expect(() => vote({ ...game, phase: "describing" }, "p1", "p2")).toThrow("投票阶段");
+  expect(() => describeAction({ ...start(createGame(1)), phase: "questioning" as const }, "p1", "提示")).toThrow("描述阶段");
+});
+it("rejects answering before any question has been asked", () => {
+  const game = { ...start(createGame(1)), phase: "questioning" as const };
+  expect(() => answer(game, "p1", "回答")).toThrow("现在不能回答");
 });
 
 it("rejects direct-word descriptions and out-of-turn commands", () => { const game = start(createGame(1)); expect(() => describeAction(game, "p2", "提示")).toThrow("不是"); expect(() => describeAction(game, "p1", game.players[0].role === "spy" ? game.spyWord : game.civilianWord)).toThrow("秘密词"); });

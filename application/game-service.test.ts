@@ -17,6 +17,12 @@ it("uses distinct identities and game content for same-millisecond creations", (
 
 it("returns the same result for a duplicate command key", () => { const game = newGame(8); const command = { key: "same", version: game.version, action: "describe" as const, text: "它有独特的使用场景" }; expect(submit(game.id, command)).toEqual(submit(game.id, command)); });
 it("rejects stale versions", () => { const game = newGame(9); submit(game.id, { key: "first", version: game.version, action: "describe", text: "这是一个提示" }); expect(() => submit(game.id, { key: "later", version: game.version, action: "describe", text: "第二次" })).toThrow("已更新"); });
+it("rejects an answer submitted before any question", () => {
+  const game = newGame(4);
+  const described = submit(game.id, { key: "describe", version: game.version, action: "describe", text: "这是一个提示" });
+  expect(described.phase).toBe("questioning");
+  expect(() => submit(described.id, { key: "answer-early", version: described.version, action: "answer", text: "回答" })).toThrow("现在不能回答");
+});
 
 function reachVoting(seed: number) {
   let game = newGame(seed);
