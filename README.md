@@ -32,6 +32,11 @@ Bluff 是一个零配置文字间谍猜词游戏，也是 [Sift](https://github.
 
 ## 接入 Sift
 
+运行前先确认信任边界：
+
+- 每个 Run 都应在独立 worktree 中工作，不要让 Agent 直接改共享 checkout。
+- 每个仓库、每个触发标签同一时间只运行一个主动 Coordinator，避免并发重复摄入或互相覆盖。
+
 Sift 当前 main 的 CLI 没有名为 `trigger`、`observe` 或 `approve` 的独立子命令，因此本样板不虚构这些命令：
 
 ```sh
@@ -48,7 +53,7 @@ sift doctor
 
 - 初始化/维护：`init`、`project add|list|remove`、`agent add|list|remove`、`daemon`、`doctor`、`install`、`update`、`service install|uninstall|start|stop|restart|reload|status`、`hooks-bootstrap`
 - 查询：`ps`、`logs <run-id>`、`timeline`、`metrics`、`worktree <run-id>`、`attach <run-id>`、`status`
-- 控制/内部：`kill <run-id>`、`retry <run-id>`、`report <kind>`（Agent 内部通道）
+- 控制/内部：`kill <run-id>`、`retry <run-id>`、`rm <run-id>`、`report <kind>`（Agent 内部通道）
 - 其他：`help`、`version`、`completion`
 
 真实 Agent 全链路、人工门禁和 Forge 行为必须在你自己的仓库中小范围试跑并人工检查；本模板未声称已经完成这条真实链路。
@@ -75,23 +80,28 @@ sift doctor
 
 ## Seed task inventory
 
-这些是真实的 `.github/sift-tasks/*.md` 文件，按 priority label 分级；每项都可用现有测试、文档或规则机器人完成，不依赖付费 runtime model：
+这些是真实的 `.github/sift-tasks/*.md` 文件。priority 表示处理优先级，difficulty 表示实施难度；每项都可用现有测试、文档或规则机器人完成，不依赖付费 runtime model：
 
-- **P0** — `06-review-state-machine-docs.md`
-- **P1** — `02-cover-reset-flow.md`、`04-harden-api-input-test.md`
-- **P2** — `01-add-visible-mode-badge.md`、`05-improve-mobile-copy.md`
-- **P3** — `03-document-game-actions.md`
+| Seed task | Priority | Difficulty |
+|---|---:|---|
+| `01-add-visible-mode-badge.md` | P2 | beginner |
+| `02-cover-reset-flow.md` | P1 | intermediate |
+| `03-document-game-actions.md` | P3 | beginner |
+| `04-harden-api-input-test.md` | P1 | advanced |
+| `05-improve-mobile-copy.md` | P2 | intermediate |
+| `06-review-state-machine-docs.md` | P0 | advanced |
 
 ## Development
 
 ```sh
 pnpm install
-pnpm tests
+pnpm test
+pnpm test:bootstrap
 pnpm build
-pnpm playwright
+pnpm e2e
 # 或：pnpm dev
 ```
 
-`pnpm playwright` 需要可用的 Playwright 浏览器；测试不会访问真实模型或网络服务。对局记录保存在 `.bluff-data/games.json`。
+`pnpm e2e` 需要可用的 Playwright 浏览器；测试不会访问真实模型或网络服务。对局记录保存在 `.bluff-data/games.json`。
 
 更多边界见 `docs/PRD.md`、`docs/DESIGN.md`、`docs/WBS.md` 和 `AGENTS.md`。

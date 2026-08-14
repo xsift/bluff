@@ -7,10 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "tests": "vitest run",
+    "test:bootstrap": "bash scripts/bootstrap.test.sh",
     "test:watch": "vitest",
-    "e2e": "playwright test",
-    "playwright": "playwright test"
+    "e2e": "playwright test"
   },
   "dependencies": {
     "next": "15.2.4",

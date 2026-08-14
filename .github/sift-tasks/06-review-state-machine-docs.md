@@ -1,6 +1,7 @@
 ---
 title: "[Sift seed] Add a state-machine transition table"
 labels: sift:run,sift:seed,priority:p0
+difficulty: advanced
 ---
 
 Add a small, implementation-backed transition table to the game specification and test one invalid transition. Keep the program as the sole authority for phase, identity, and outcome.

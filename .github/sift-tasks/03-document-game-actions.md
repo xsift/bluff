@@ -1,6 +1,7 @@
 ---
 title: "[Sift seed] Document the legal game actions"
 labels: sift:run,sift:seed,priority:p3
+difficulty: beginner
 ---
 
 Improve the game specification with a concise table of legal actions, phases, and rejection cases. Link to the implementation instead of duplicating source code.
